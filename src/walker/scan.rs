@@ -1,24 +1,66 @@
-use std::ffi::OsStr;
-use std::ops::ControlFlow;
-use std::path::Path;
-use std::convert::AsRef;
 use anyhow::Error as AnyError;
-use std::fs;
+use lazy_static::lazy_static;
+use std::convert::AsRef;
+use std::ffi::OsStr;
+use std::fs::{self, ReadDir};
+use std::path::Path;
+use tracing::{trace, warn};
 
-/// 其职责是发现所有的图片&视频文件,存储其具体的位置
-pub struct Scanner {
-}
+const IMAGE_EXT: [&'static str; 3] = ["jpg", "jpeg", "png"];
+pub struct DirsScanner;
 
-impl  Scanner {
-    fn scan<P>(root: P) ->  Result<(), AnyError> where P: AsRef<OsStr>{
+impl DirsScanner {
+    fn scan_entry<P>(root: P) -> Result<(), AnyError>
+    where
+        P: AsRef<OsStr>,
+    {
         let root = Path::new(root.as_ref());
+        let dir_content = fs::read_dir(root)?;
 
-        let mut dir_content= fs::read_dir(root)?;        
-        dir_content.for_each(|item| {
-            
-        });
+        Self::scan_dir_contents(dir_content);
         return Ok(());
     }
 
+    fn scan_dir_contents(dir_content: ReadDir) {
+        dir_content.for_each(|item| match item {
+            Err(e) => {
+                warn!("dir scanning met problem, e:{:?}", e);
+            }
+            Ok(entry) => {
+                let file_type = entry.file_type();
+                if let Ok(file_type) = file_type {
+                    if file_type.is_symlink() {
+                        trace!(entry = ?entry, "Scan skip symlink file");
+                        return;
+                    }
+                    if file_type.is_dir() {
+                        let dir = fs::read_dir(entry.path());
+                        if let Ok(dir) = dir {
+                            println!("scanning:{:?}", entry.path());
+                            Self::scan_dir_contents(dir);
+                        }
+                        return;
+                    }
+                    if file_type.is_file() {
+                        let path_buf = entry.path();
+                        let path = path_buf.as_path();
+                        Self::process_file(path);
+                    }
+                }
+            }
+        });
+    }
 
+    fn process_file(path: &Path) {
+        let ext = path.extension();
+        match ext {
+            Some(ext) => {
+                if let Some(ext) = ext.to_str() {
+                    // only process
+                    if IMAGE_EXT.binary_search(&ext).is_ok() {}
+                }
+            }
+            _ => {}
+        }
+    }
 }
