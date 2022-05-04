@@ -1,5 +1,4 @@
 use anyhow::Error as AnyError;
-use lazy_static::lazy_static;
 use std::convert::AsRef;
 use std::ffi::OsStr;
 use std::fs::{self, ReadDir};
@@ -57,10 +56,13 @@ impl DirsScanner {
             Some(ext) => {
                 if let Some(ext) = ext.to_str() {
                     // only process
-                    if IMAGE_EXT.binary_search(&ext).is_ok() {}
+                    if IMAGE_EXT.contains(&ext) {}
                 }
             }
             _ => {}
         }
     }
 }
+
+#[cfg(test)]
+mod tests {}
