@@ -1,4 +1,5 @@
 use anyhow::Error as AnyError;
+use chrono::{DateTime, Local, TimeZone};
 use std::io::Write;
 use std::{fs::OpenOptions, path::Path, sync::Once};
 
@@ -7,6 +8,11 @@ use strum_macros::{AsRefStr, EnumString};
 
 // 只执行一次，初始化image magic
 static START: Once = Once::new();
+
+#[derive(Debug)]
+pub struct ImageMeta {
+    create_time: Option<DateTime<Local>>,
+}
 
 #[derive(Debug, PartialEq, EnumString, AsRefStr)]
 pub enum ImageFormat {
@@ -52,20 +58,4 @@ pub fn gen_new_format_image(
         // either use ? or unwrap since it returns a Result
         .open(dest_path)?;
     return Ok(file.write_all(&dest_img)?);
-}
-
-#[cfg(test)]
-mod tests {
-    use std::ffi::OsStr;
-
-    use super::*;
-    #[test]
-    fn test_num() {
-        println!("{}", ImageFormat::Jpeg.as_ref());
-        let path = OsStr::new("/home/frio/workspace/rust/fantastic_time/src/img/data/IMG_5745.JPG");
-        let r = change_img_format(path.as_ref(), ImageFormat::Png);
-        println!("convert result is:{:?}", r.unwrap().len());
-        let r = gen_new_format_image(path.as_ref(), "/tmp/test.png".as_ref(), ImageFormat::Png);
-        println!("r is:{:?}", r);
-    }
 }

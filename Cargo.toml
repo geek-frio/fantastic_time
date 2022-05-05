@@ -14,4 +14,9 @@ iced = "0.4"
 strum = "0.24"
 strum_macros = "0.24.0"
 winit = "0.26.1"
-magick_rust = "0.15.0"
+# magick_rust = "0.15.0"
+magick_rust = { path = "../magick-rust" }
+chrono = "0.4.19"
+
+[[bin]]
+name = "main"

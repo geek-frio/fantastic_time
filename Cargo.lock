@@ -228,6 +228,7 @@ dependencies = [
  "libc",
  "num-integer",
  "num-traits",
+ "time",
  "winapi",
 ]
 
@@ -588,6 +589,7 @@ name = "fantastic_time"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "iced",
  "lazy_static",
  "magick_rust",
@@ -1130,9 +1132,7 @@ dependencies = [
 
 [[package]]
 name = "magick_rust"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13584c9d754ca069ee43d1ee155c4a14a87e7e68faf7b61255f2d3133ee259c4"
+version = "0.16.0"
 dependencies = [
  "bindgen",
  "libc",
@@ -1900,6 +1900,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5516c27b78311c50bf42c071425c560ac799b11c30b31f87e3081965fe5e0180"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "time"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
