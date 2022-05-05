@@ -593,6 +593,7 @@ dependencies = [
  "iced",
  "lazy_static",
  "magick_rust",
+ "regex",
  "strum",
  "strum_macros",
  "tracing",

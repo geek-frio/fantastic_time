@@ -1,9 +1,11 @@
 use anyhow::Error as AnyError;
 use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, TimeZone};
+use regex::Regex;
 use std::io::Write;
 use std::ops::ControlFlow;
 use std::{fs::OpenOptions, path::Path, sync::Once};
 
+use lazy_static::lazy_static;
 use magick_rust::{magick_wand_genesis, MagickWand};
 use strum_macros::{AsRefStr, EnumString};
 
@@ -14,10 +16,8 @@ const CORRECT_DATETIME_PROP: [&'static str; 3] = [
     "exif:DateTimeOriginal", // format: 2016:03:17 12:43:55
     "exif:GPSDateStamp",     // format: 2016:03:17
 ];
-
 // 2022-05-04T12:40:18+00:00 (RFC3339 format)
 const IMG_FILE_DATETIME_DROP: [&'static str; 2] = ["date:create", "date:modify"];
-
 const SIGNATURE_PROP: [&'static str; 1] = ["signature"];
 
 // 只执行一次，初始化image magic
@@ -58,12 +58,25 @@ enum InfoValidScore {
     Low,
 }
 
-// 1. 尝试从图片中获取时间相关信息
-// 2. 从文件名中获取时间相关信息
-// 3. 根据图片的创建时间获取
-fn try_retrieve_img_create_time_info(
-    img: &MagickWand,
-) -> Option<(DateTime<FixedOffset>, InfoValidScore)> {
+// 获取文件名中的年月日
+fn retrive_filename_datetime(name: &str) -> Option<DateTime<FixedOffset>> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"((((19|20)\d{2})(0?(1|[3-9])|1[012])(0?[1-9]|[12]\d|30))|(((19|20)\d{2})(0?[13578]|1[02])31)|(((19|20)\d{2})0?2(0?[1-9]|1\d|2[0-8]))|((((19|20)([13579][26]|[2468][048]|0[48]))|(2000))0?229))").unwrap();
+    }
+    RE.captures(name).and_then(|el| {
+        let r = el.get(0);
+        r.map_or(None, |el| {
+            let date_time = DateTime::parse_from_str(el.as_str(), "%Y%m%d");
+            match date_time {
+                Ok(d) => Some(d),
+                Err(e) => None,
+            }
+        })
+    })
+}
+
+// 读取图片meta信息
+fn retrieve_meta_datetime(img: &MagickWand) -> Option<(DateTime<FixedOffset>, InfoValidScore)> {
     // let mut s = None;
     let r = CORRECT_DATETIME_PROP.iter().try_for_each(|el| {
         let res = img.get_image_property(*el);
@@ -153,9 +166,16 @@ pub fn gen_new_format_image(
 mod tests {
     use chrono::DateTime;
 
+    use super::retrive_filename_datetime;
+
     #[test]
     fn test_parse_date_time() {
         let rfc3339 = DateTime::parse_from_rfc3339("1996-12-19T16:39:57+00:00");
         println!("rfc3339 is :{:?}", rfc3339);
+    }
+
+    #[test]
+    fn test_retrive_filename_datetime() {
+        retrive_filename_datetime("20130320");
     }
 }

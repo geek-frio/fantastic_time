@@ -17,6 +17,7 @@ winit = "0.26.1"
 # magick_rust = "0.15.0"
 magick_rust = { path = "../magick-rust" }
 chrono = "0.4.19"
+regex = "1.5.5"
 
 [[bin]]
 name = "main"
