@@ -1,19 +1,23 @@
 use anyhow::Error as AnyError;
-use chrono::{DateTime, Local, TimeZone};
+use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, TimeZone};
 use std::io::Write;
+use std::ops::ControlFlow;
 use std::{fs::OpenOptions, path::Path, sync::Once};
 
 use magick_rust::{magick_wand_genesis, MagickWand};
 use strum_macros::{AsRefStr, EnumString};
 
 // 图片中关于图像的属性
-const DATETIME_PROP: [&'static str; 5] = [
-    "exif:DateTime",         // 2016:03:17 12:43:55
-    "exif:DateTimeOriginal", // 2016:03:17 12:43:55
-    "exif:GPSDateStamp",     // 2016:03:17
-    "date:create",           // 2022-05-05T03:48:40+00:00
-    "date:modify",           // 2022-05-05T03:48:40+00:00
+// NaiveDateTime format
+const CORRECT_DATETIME_PROP: [&'static str; 3] = [
+    "exif:DateTime",         // format: 2016:03:17 12:43:55
+    "exif:DateTimeOriginal", // format: 2016:03:17 12:43:55
+    "exif:GPSDateStamp",     // format: 2016:03:17
 ];
+
+// 2022-05-04T12:40:18+00:00 (RFC3339 format)
+const IMG_FILE_DATETIME_DROP: [&'static str; 2] = ["date:create", "date:modify"];
+
 const SIGNATURE_PROP: [&'static str; 1] = ["signature"];
 
 // 只执行一次，初始化image magic
@@ -21,7 +25,7 @@ static START: Once = Once::new();
 
 #[derive(Debug)]
 pub struct ImageMeta {
-    create_time: Option<DateTime<Local>>,
+    create_time: Option<DateTime<FixedOffset>>,
     gps: (f64, f64),
 }
 
@@ -59,8 +63,55 @@ enum InfoValidScore {
 // 3. 根据图片的创建时间获取
 fn try_retrieve_img_create_time_info(
     img: &MagickWand,
-) -> Result<(DateTime<Local>, InfoValidScore), AnyError> {
-    return Err(AnyError::msg("无法判断图片具体的创建时间"));
+) -> Option<(DateTime<FixedOffset>, InfoValidScore)> {
+    // let mut s = None;
+    let r = CORRECT_DATETIME_PROP.iter().try_for_each(|el| {
+        let res = img.get_image_property(*el);
+        if let Ok(time_str) = res {
+            if (*el).contains("DateTime") {
+                let date_time = DateTime::parse_from_str(time_str.as_ref(), "%Y-%m-%d %H:%M:%S");
+                match date_time {
+                    Ok(s) => {
+                        return ControlFlow::Break((s, InfoValidScore::High));
+                    }
+                    Err(_) => {
+                        return ControlFlow::Continue(());
+                    }
+                }
+            } else {
+                let date_time = DateTime::parse_from_str(time_str.as_ref(), "%Y-%m-%d");
+                match date_time {
+                    Ok(s) => return ControlFlow::Break((s, InfoValidScore::Middle)),
+                    Err(_) => {
+                        return ControlFlow::Continue(());
+                    }
+                }
+            }
+        }
+        ControlFlow::Continue(())
+    });
+    match r {
+        ControlFlow::Break(s) => return Some(s),
+        ControlFlow::Continue(_) => {
+            let r = IMG_FILE_DATETIME_DROP.iter().try_for_each(|el| {
+                let res = img.get_image_property(*el);
+                if let Ok(time_str) = res {
+                    let date_time = DateTime::parse_from_rfc3339(time_str.as_ref());
+                    match date_time {
+                        Ok(s) => {
+                            return ControlFlow::Break((s, InfoValidScore::Low));
+                        }
+                        Err(_) => return ControlFlow::Continue(()),
+                    }
+                }
+                ControlFlow::Continue(())
+            });
+            match r {
+                ControlFlow::Break(s) => return Some(s),
+                ControlFlow::Continue(_) => return None,
+            }
+        }
+    }
 }
 
 pub fn change_img_format(path: &Path, format: ImageFormat) -> Result<Vec<u8>, AnyError> {
@@ -96,4 +147,15 @@ pub fn gen_new_format_image(
         // either use ? or unwrap since it returns a Result
         .open(dest_path)?;
     return Ok(file.write_all(&dest_img)?);
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::DateTime;
+
+    #[test]
+    fn test_parse_date_time() {
+        let rfc3339 = DateTime::parse_from_rfc3339("1996-12-19T16:39:57+00:00");
+        println!("rfc3339 is :{:?}", rfc3339);
+    }
 }
