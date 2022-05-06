@@ -25,7 +25,7 @@ static START: Once = Once::new();
 
 #[derive(Debug)]
 pub struct ImageMeta {
-    create_time: Option<DateTime<FixedOffset>>,
+    create_time: Option<NaiveDateTime>,
     gps: (f64, f64),
 }
 
@@ -52,6 +52,7 @@ pub fn retrive_img_meta(path: &Path) -> Result<ImageFormat, AnyError> {
 }
 
 // 信息获取的有效性
+#[derive(Debug, PartialEq)]
 enum InfoValidScore {
     High,
     Middle,
@@ -59,32 +60,40 @@ enum InfoValidScore {
 }
 
 // 获取文件名中的年月日
-fn retrive_filename_datetime(name: &str) -> Option<DateTime<FixedOffset>> {
+fn retrive_filename_datetime(name: &str) -> Option<(NaiveDateTime, InfoValidScore)> {
     lazy_static! {
-        static ref RE: Regex = Regex::new(r"((((19|20)\d{2})(0?(1|[3-9])|1[012])(0?[1-9]|[12]\d|30))|(((19|20)\d{2})(0?[13578]|1[02])31)|(((19|20)\d{2})0?2(0?[1-9]|1\d|2[0-8]))|((((19|20)([13579][26]|[2468][048]|0[48]))|(2000))0?229))").unwrap();
+        static ref RE: Regex = Regex::new(r"((((19|20)\d{2})(0?[13578]|1[02])(0?[1-9]|[12]\d|3[01]))|(((19|20)\d{2})(0?[469]|11)(0?[1-9]|[12]\d|30))|(((19|20)\d{2})0?2(0?[1-9]|1\d|2[0-8]))|((((19|20)([13579][26]|[2468][048]|0[48]))|(2000))0?2(0?[1-9]|[12]\d)))$").unwrap();
     }
     RE.captures(name).and_then(|el| {
         let r = el.get(0);
         r.map_or(None, |el| {
-            let date_time = DateTime::parse_from_str(el.as_str(), "%Y%m%d");
+            let mut date_time_str = String::new();
+            date_time_str.push_str(el.as_str());
+            date_time_str.push_str(" 00:00:00");
+            let date_time =
+                NaiveDateTime::parse_from_str(date_time_str.as_str(), "%Y%m%d %H:%M:%S");
+            println!("parse result is:{:?}", date_time);
             match date_time {
-                Ok(d) => Some(d),
-                Err(e) => None,
+                Ok(d) => Some((d, InfoValidScore::Middle)),
+                Err(_) => None,
             }
         })
     })
 }
 
 // 读取图片meta信息
-fn retrieve_meta_datetime(img: &MagickWand) -> Option<(DateTime<FixedOffset>, InfoValidScore)> {
+fn retrieve_meta_datetime(img: &MagickWand) -> Option<(NaiveDateTime, InfoValidScore)> {
     // let mut s = None;
     let r = CORRECT_DATETIME_PROP.iter().try_for_each(|el| {
         let res = img.get_image_property(*el);
         if let Ok(time_str) = res {
             if (*el).contains("DateTime") {
-                let date_time = DateTime::parse_from_str(time_str.as_ref(), "%Y-%m-%d %H:%M:%S");
+                println!("Contains DateTime keyword");
+                let date_time =
+                    NaiveDateTime::parse_from_str(time_str.as_ref(), "%Y-%m-%d %H:%M:%S");
                 match date_time {
                     Ok(s) => {
+                        println!("提前退出, s:{:?}", s);
                         return ControlFlow::Break((s, InfoValidScore::High));
                     }
                     Err(_) => {
@@ -92,7 +101,7 @@ fn retrieve_meta_datetime(img: &MagickWand) -> Option<(DateTime<FixedOffset>, In
                     }
                 }
             } else {
-                let date_time = DateTime::parse_from_str(time_str.as_ref(), "%Y-%m-%d");
+                let date_time = NaiveDateTime::parse_from_str(time_str.as_ref(), "%Y-%m-%d");
                 match date_time {
                     Ok(s) => return ControlFlow::Break((s, InfoValidScore::Middle)),
                     Err(_) => {
@@ -106,13 +115,16 @@ fn retrieve_meta_datetime(img: &MagickWand) -> Option<(DateTime<FixedOffset>, In
     match r {
         ControlFlow::Break(s) => return Some(s),
         ControlFlow::Continue(_) => {
+            println!("没有Match到, 尝试获取图片文件的创建时间");
             let r = IMG_FILE_DATETIME_DROP.iter().try_for_each(|el| {
                 let res = img.get_image_property(*el);
+                println!("res is:{:?}", res);
                 if let Ok(time_str) = res {
                     let date_time = DateTime::parse_from_rfc3339(time_str.as_ref());
                     match date_time {
                         Ok(s) => {
-                            return ControlFlow::Break((s, InfoValidScore::Low));
+                            println!("result is:{:?}", s.naive_local());
+                            return ControlFlow::Break((s.naive_local(), InfoValidScore::Low));
                         }
                         Err(_) => return ControlFlow::Continue(()),
                     }
@@ -165,8 +177,11 @@ pub fn gen_new_format_image(
 #[cfg(test)]
 mod tests {
     use chrono::DateTime;
+    use magick_rust::MagickWand;
 
-    use super::retrive_filename_datetime;
+    use crate::img::InfoValidScore;
+
+    use super::{retrieve_meta_datetime, retrive_filename_datetime};
 
     #[test]
     fn test_parse_date_time() {
@@ -176,6 +191,16 @@ mod tests {
 
     #[test]
     fn test_retrive_filename_datetime() {
-        retrive_filename_datetime("20130320");
+        let r = retrive_filename_datetime("20130320");
+        // println!("res is:{:?}", r);
+    }
+
+    #[test]
+    fn test_retrive_meta() {
+        // rust png don't have DateTime info
+        let img = MagickWand::new();
+        let _ = img.read_image("tests/imgs/rust.png");
+        let r = retrieve_meta_datetime(&img);
+        assert!(r.unwrap().1 == InfoValidScore::Low);
     }
 }
