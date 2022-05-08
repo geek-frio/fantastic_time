@@ -1,3 +1,4 @@
+use crate::img::*;
 use anyhow::Error as AnyError;
 use std::convert::AsRef;
 use std::ffi::OsStr;
@@ -55,7 +56,7 @@ impl DirsScanner {
         match ext {
             Some(ext) => {
                 if let Some(ext) = ext.to_str() {
-                    // only process
+                    // only process img file
                     if IMAGE_EXT.contains(&ext) {}
                 }
             }

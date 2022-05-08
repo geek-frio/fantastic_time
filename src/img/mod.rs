@@ -39,28 +39,16 @@ pub enum ImageFormat {
     Png,
 }
 
-pub fn retrive_img_meta(path: &Path) -> Result<ImageFormat, AnyError> {
-    START.call_once(|| {
-        magick_wand_genesis();
-    });
-    let wand = MagickWand::new();
-    wand.read_image(
-        path.to_str()
-            .ok_or(AnyError::msg("Convert path to str failed!"))?,
-    )?;
-    return Err(AnyError::msg("error"));
-}
-
 // 信息获取的有效性
 #[derive(Debug, PartialEq)]
-enum InfoValidScore {
+pub enum InfoValidScore {
     High,
     Middle,
     Low,
 }
 
 // 获取文件名中的年月日
-fn retrive_filename_datetime(name: &str) -> Option<(NaiveDateTime, InfoValidScore)> {
+pub fn retrive_filename_datetime(name: &str) -> Option<(NaiveDateTime, InfoValidScore)> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r"((((19|20)\d{2})(0?[13578]|1[02])(0?[1-9]|[12]\d|3[01]))|(((19|20)\d{2})(0?[469]|11)(0?[1-9]|[12]\d|30))|(((19|20)\d{2})0?2(0?[1-9]|1\d|2[0-8]))|((((19|20)([13579][26]|[2468][048]|0[48]))|(2000))0?2(0?[1-9]|[12]\d)))$").unwrap();
     }
@@ -82,7 +70,7 @@ fn retrive_filename_datetime(name: &str) -> Option<(NaiveDateTime, InfoValidScor
 }
 
 // 读取图片meta信息
-fn retrieve_meta_datetime(img: &MagickWand) -> Option<(NaiveDateTime, InfoValidScore)> {
+pub fn retrieve_meta_datetime(img: &MagickWand) -> Option<(NaiveDateTime, InfoValidScore)> {
     // let mut s = None;
     let r = CORRECT_DATETIME_PROP.iter().try_for_each(|el| {
         let res = img.get_image_property(*el);
