@@ -51,17 +51,15 @@ impl DirsScanner {
         });
     }
 
-    fn process_file(path: &Path) {
-        let ext = path.extension();
-        match ext {
-            Some(ext) => {
-                if let Some(ext) = ext.to_str() {
-                    // only process img file
-                    if IMAGE_EXT.contains(&ext) {}
-                }
-            }
-            _ => {}
+    fn process_file(path: &Path) -> Result<(), AnyError> {
+        let ext = path
+            .extension()
+            .ok_or(AnyError::msg("get extension failed"))?;
+        let ext = ext.to_str().ok_or(AnyError::msg("No extension info"))?;
+        if IMAGE_EXT.contains(&ext) {
+            let datetime = retrive_img_datetime(path)?;
         }
+        Ok(())
     }
 }
 

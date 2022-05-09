@@ -18,6 +18,7 @@ winit = "0.26.1"
 # magick_rust = "0.15.0"
 magick_rust = { path = "../magick-rust" }
 chrono = "0.4.19"
+rusqlite = "0.27.0"
 regex = "1.5.5"
 clap = { version = "3.1.17", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"]}

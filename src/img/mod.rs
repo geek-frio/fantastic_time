@@ -47,8 +47,38 @@ pub enum InfoValidScore {
     Low,
 }
 
+// 获取图片的时间信息
+// 1: 图片中含有extif: DateTime或者GPS datetime信息
+// 2: 文件名中含有时间信息
+// 3: 使用文件的创建时间
+pub fn retrive_img_datetime(path: &Path) -> Result<NaiveDateTime, AnyError> {
+    let path_str = path.as_os_str().to_str();
+    let mut date_time = None;
+    if let Some(s) = path_str {
+        date_time = retrieve_filename_datetime(s);
+    }
+    let wand = MagickWand::new();
+    wand.read_image(
+        path.as_os_str()
+            .to_str()
+            .ok_or(AnyError::msg("path to str failed!"))?,
+    )?;
+    let res = retrieve_meta_datetime(&wand);
+    if let Some((d, score)) = res {
+        if score == InfoValidScore::High || score == InfoValidScore::Middle {
+            Ok(d)
+        } else if score == InfoValidScore::Low && date_time.is_some() {
+            Ok(date_time.unwrap().0)
+        } else {
+            Ok(d)
+        }
+    } else {
+        Err(AnyError::msg("Not find datetime info"))
+    }
+}
+
 // 获取文件名中的年月日
-pub fn retrive_filename_datetime(name: &str) -> Option<(NaiveDateTime, InfoValidScore)> {
+pub fn retrieve_filename_datetime(name: &str) -> Option<(NaiveDateTime, InfoValidScore)> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r"((((19|20)\d{2})(0?[13578]|1[02])(0?[1-9]|[12]\d|3[01]))|(((19|20)\d{2})(0?[469]|11)(0?[1-9]|[12]\d|30))|(((19|20)\d{2})0?2(0?[1-9]|1\d|2[0-8]))|((((19|20)([13579][26]|[2468][048]|0[48]))|(2000))0?2(0?[1-9]|[12]\d)))$").unwrap();
     }
@@ -169,7 +199,7 @@ mod tests {
 
     use crate::img::InfoValidScore;
 
-    use super::{retrieve_meta_datetime, retrive_filename_datetime};
+    use super::{retrieve_filename_datetime, retrieve_meta_datetime};
 
     #[test]
     fn test_parse_date_time() {
