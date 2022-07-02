@@ -27,5 +27,4 @@ struct ScanImgs {
 fn main() {
     let args = MainArgs::parse();
 
-    println!("abc");
 }
