@@ -25,7 +25,8 @@ impl DirsScanner {
         dir_content.for_each(|item| match item {
             Err(e) => {
                 warn!("dir scanning met problem, e:{:?}", e);
-            }
+            },
+
             Ok(entry) => {
                 let file_type = entry.file_type();
                 if let Ok(file_type) = file_type {
@@ -33,6 +34,7 @@ impl DirsScanner {
                         trace!(entry = ?entry, "Scan skip symlink file");
                         return;
                     }
+
                     if file_type.is_dir() {
                         let dir = fs::read_dir(entry.path());
                         if let Ok(dir) = dir {
@@ -41,10 +43,12 @@ impl DirsScanner {
                         }
                         return;
                     }
+
                     if file_type.is_file() {
                         let path_buf = entry.path();
                         let path = path_buf.as_path();
-                        Self::process_file(path);
+
+                        let _ = Self::process_file(path);
                     }
                 }
             }
@@ -56,6 +60,7 @@ impl DirsScanner {
             .extension()
             .ok_or(AnyError::msg("get extension failed"))?;
         let ext = ext.to_str().ok_or(AnyError::msg("No extension info"))?;
+
         if IMAGE_EXT.contains(&ext) {
             let datetime = retrive_img_datetime(path)?;
         }

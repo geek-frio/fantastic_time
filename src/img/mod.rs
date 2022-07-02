@@ -57,12 +57,14 @@ pub fn retrive_img_datetime(path: &Path) -> Result<NaiveDateTime, AnyError> {
     if let Some(s) = path_str {
         date_time = retrieve_filename_datetime(s);
     }
+
     let wand = MagickWand::new();
     wand.read_image(
         path.as_os_str()
             .to_str()
             .ok_or(AnyError::msg("path to str failed!"))?,
     )?;
+
     let res = retrieve_meta_datetime(&wand);
     if let Some((d, score)) = res {
         if score == InfoValidScore::High || score == InfoValidScore::Middle {
@@ -105,33 +107,33 @@ pub fn retrieve_meta_datetime(img: &MagickWand) -> Option<(NaiveDateTime, InfoVa
     let r = CORRECT_DATETIME_PROP.iter().try_for_each(|el| {
         let res = img.get_image_property(*el);
         if let Ok(time_str) = res {
-            if (*el).contains("DateTime") {
+            return if (*el).contains("DateTime") {
                 println!("Contains DateTime keyword");
                 let date_time =
                     NaiveDateTime::parse_from_str(time_str.as_ref(), "%Y-%m-%d %H:%M:%S");
                 match date_time {
                     Ok(s) => {
                         println!("提前退出, s:{:?}", s);
-                        return ControlFlow::Break((s, InfoValidScore::High));
+                        ControlFlow::Break((s, InfoValidScore::High))
                     }
                     Err(_) => {
-                        return ControlFlow::Continue(());
+                        ControlFlow::Continue(())
                     }
                 }
             } else {
                 let date_time = NaiveDateTime::parse_from_str(time_str.as_ref(), "%Y-%m-%d");
                 match date_time {
-                    Ok(s) => return ControlFlow::Break((s, InfoValidScore::Middle)),
+                    Ok(s) => ControlFlow::Break((s, InfoValidScore::Middle)),
                     Err(_) => {
-                        return ControlFlow::Continue(());
+                        ControlFlow::Continue(())
                     }
                 }
             }
         }
         ControlFlow::Continue(())
     });
-    match r {
-        ControlFlow::Break(s) => return Some(s),
+    return match r {
+        ControlFlow::Break(s) => Some(s),
         ControlFlow::Continue(_) => {
             println!("没有Match到, 尝试获取图片文件的创建时间");
             let r = IMG_FILE_DATETIME_DROP.iter().try_for_each(|el| {
@@ -139,19 +141,19 @@ pub fn retrieve_meta_datetime(img: &MagickWand) -> Option<(NaiveDateTime, InfoVa
                 println!("res is:{:?}", res);
                 if let Ok(time_str) = res {
                     let date_time = DateTime::parse_from_rfc3339(time_str.as_ref());
-                    match date_time {
+                    return match date_time {
                         Ok(s) => {
                             println!("result is:{:?}", s.naive_local());
-                            return ControlFlow::Break((s.naive_local(), InfoValidScore::Low));
+                            ControlFlow::Break((s.naive_local(), InfoValidScore::Low))
                         }
-                        Err(_) => return ControlFlow::Continue(()),
+                        Err(_) => ControlFlow::Continue(()),
                     }
                 }
                 ControlFlow::Continue(())
             });
             match r {
-                ControlFlow::Break(s) => return Some(s),
-                ControlFlow::Continue(_) => return None,
+                ControlFlow::Break(s) => Some(s),
+                ControlFlow::Continue(_) => None,
             }
         }
     }
@@ -166,13 +168,13 @@ pub fn change_img_format(path: &Path, format: ImageFormat) -> Result<Vec<u8>, An
         path.to_str()
             .ok_or(AnyError::msg("Path osstr to str failed"))?,
     );
-    match res {
+    return match res {
         Ok(_) => {
             let blob = wand.write_images_blob(format.as_ref()).unwrap();
-            return Ok(blob);
+            Ok(blob)
         }
         Err(s) => {
-            return Err(AnyError::msg(s));
+            Err(AnyError::msg(s))
         }
     }
 }
@@ -209,7 +211,6 @@ mod tests {
 
     #[test]
     fn test_retrive_filename_datetime() {
-        let r = retrive_filename_datetime("20130320");
         // println!("res is:{:?}", r);
     }
 

@@ -24,7 +24,7 @@ enum WrapConnection {
 
 impl Drop for WrapConnection {
     fn drop(&mut self) {
-        }
+        // }
 
         // match old {
         //     WrapConnection::Conn(conn, db) => {
