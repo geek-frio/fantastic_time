@@ -1,4 +1,6 @@
 pub(crate) mod gui;
-pub mod img;
-pub mod util;
+pub(crate) mod img;
+pub(crate) mod store;
+pub(crate) mod util;
 pub(crate) mod walker;
+pub(crate) mod sched;

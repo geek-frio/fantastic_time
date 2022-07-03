@@ -18,12 +18,14 @@ winit = "0.26.1"
 # magick_rust = "0.15.0"
 magick_rust = { path = "../magick-rust" }
 chrono = "0.4.19"
-rusqlite = "0.27.0"
+rusqlite = { version = "0.27.0", features = ["window", "array", "bundled-full"] }
 regex = "1.5.5"
 clap = { version = "3.1.17", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"]}
 serde_yaml = "0.8"
 tokio = { version = "1", features = ["full"] }
+crossbeam = "0.8.1"
+sha2 = "0.10"
 
 [[bin]]
 name = "main"

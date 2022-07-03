@@ -1,3 +1,5 @@
+mod hash;
+
 use anyhow::Error as AnyError;
 use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, TimeZone};
 use regex::Regex;
@@ -41,9 +43,9 @@ pub enum InfoValidScore {
 
 #[derive(Debug)]
 pub struct ImgMeta {
-    sig: Option<String>,
-    time: Option<NaiveDateTime>,
-    score: Option<InfoValidScore>,
+    pub sig: Option<String>,
+    pub time: Option<NaiveDateTime>,
+    pub score: Option<InfoValidScore>,
 }
 
 impl ImgMeta {}
@@ -74,9 +76,14 @@ pub fn retrive_img_datetime(path: &Path) -> Result<ImgMeta, AnyError> {
     };
 
     let sign = wand.get_image_property("signature");
-    let _ = sign.map(|r| {
-        img_meta.sig = Some(r);
+    // let _ = sign.map(|r| {
+    //     img_meta.sig = Some(r);
+    // });
+    sign.into_iter().for_each(|item| {
+        img_meta.sig = Some(item);
     });
+
+    if img_meta.sig.is_none() {}
 
     let res = retrieve_meta_datetime(&wand);
     if let Some((d, score)) = res {
@@ -132,13 +139,13 @@ pub fn retrieve_meta_datetime(img: &MagickWand) -> Option<(NaiveDateTime, InfoVa
     // let mut s = None;
     let r = CORRECT_DATETIME_PROP.iter().try_for_each(|el| {
         let res = img.get_image_property(*el);
-        println!("Get image property:{:?}, eL:{:?}", res, el);
         if let Ok(time_str) = res {
             return if (*el).contains("DateTime") {
                 let date_time = parse_in_multi_formats(
                     time_str.as_ref(),
                     vec!["%Y-%m-%d %H:%M:%S", "%Y:%m:%d %H:%M:%S"],
                 );
+
                 match date_time {
                     Some(s) => ControlFlow::Break((s, InfoValidScore::High)),
                     None => ControlFlow::Continue(()),

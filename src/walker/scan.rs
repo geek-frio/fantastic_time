@@ -4,23 +4,33 @@ use std::convert::AsRef;
 use std::ffi::OsStr;
 use std::fs::{self, ReadDir};
 use std::path::Path;
+use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, Sender};
 use tracing::{trace, warn};
 
-pub struct DirsScanner;
+pub struct DirsScanner {
+    sender: Sender<PathBuf>,
+}
 
 impl DirsScanner {
-    fn scan_entry<P>(root: P) -> Result<(), AnyError>
+    pub fn new() -> (DirsScanner, Receiver<PathBuf>) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let scanner = DirsScanner { sender };
+        (scanner, receiver)
+    }
+
+    pub fn scan_entry<P>(&self, root: P) -> Result<(), AnyError>
     where
         P: AsRef<OsStr>,
     {
         let root = Path::new(root.as_ref());
         let dir_content = fs::read_dir(root)?;
 
-        Self::scan_dir_contents(dir_content);
+        self.scan_dir_contents(dir_content);
         return Ok(());
     }
 
-    fn scan_dir_contents(dir_content: ReadDir) {
+    pub fn scan_dir_contents(&self, dir_content: ReadDir) {
         dir_content.for_each(|item| match item {
             Err(e) => {
                 warn!("dir scanning met problem, e:{:?}", e);
@@ -28,6 +38,7 @@ impl DirsScanner {
 
             Ok(entry) => {
                 let file_type = entry.file_type();
+
                 if let Ok(file_type) = file_type {
                     if file_type.is_symlink() {
                         trace!(entry = ?entry, "Scan skip symlink file");
@@ -36,20 +47,21 @@ impl DirsScanner {
 
                         if let Ok(dir) = dir {
                             println!("scanning:{:?}", entry.path());
-                            Self::scan_dir_contents(dir);
+                            self.scan_dir_contents(dir);
                         }
                     } else if file_type.is_file() {
                         let path_buf = entry.path();
                         let path = path_buf.as_path();
 
-                        let _ = Self::process_file(path);
+                        let path_buf: PathBuf = path.into();
+                        self.sender.send(path_buf).unwrap();
                     }
                 }
             }
         });
     }
 
-    fn process_file(path: &Path) -> Result<Option<ImgMeta>, AnyError> {
+    pub fn process_file(path: &Path) -> Result<Option<ImgMeta>, AnyError> {
         const IMAGE_EXT: [&'static str; 3] = ["jpg", "jpeg", "png"];
         let ext = path
             .extension()
@@ -62,15 +74,5 @@ impl DirsScanner {
 
         let img_meta = retrive_img_datetime(path)?;
         Ok(Some(img_meta))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::walker::scan::DirsScanner;
-
-    #[test]
-    fn test_scan_imgs() {
-        let _ = DirsScanner::scan_entry(r"D:\TestPics");
     }
 }
