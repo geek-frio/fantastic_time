@@ -1,13 +1,12 @@
 use chrono::NaiveDateTime;
-use rusqlite::{params, Connection, OpenFlags, Result as DbResult};
-use std::path::PathBuf;
+use rusqlite::{params, Connection, OpenFlags, Result as DbResult, Row};
 use std::sync::Arc;
 
 use crate::conf::GlobalConfig;
 
 #[derive(Debug)]
 pub struct ImgMetaDO {
-    pub(crate) id: i32,
+    pub(crate) id: Option<String>,
     pub(crate) time: NaiveDateTime,
     pub(crate) sign: String,
 }
@@ -17,22 +16,9 @@ pub struct ImgMetaDao {
 }
 
 impl ImgMetaDao {
-    const TABLE_NAME: &'static str = "img_meta";
-
-    pub fn init(&self) {
-        let conn = self.get_conn();
-
-        let sql = format!("select 1 from {}", Self::TABLE_NAME);
-        let res = conn.execute(sql.as_str(), []);
-
-        if let Err(_) = res {
-            Self::create_table(&conn).expect("初始化图片Meta仓库失败");
-        }
-    }
-
     pub fn create_table(conn: &Connection) -> DbResult<usize> {
         let res = conn.execute(
-            "CREATE TABLE img_meta (id integer primary key, time, sign)",
+            "CREATE TABLE img_meta (id integer primary key, time, timestamp, sign)",
             [],
         );
         res
@@ -41,9 +27,69 @@ impl ImgMetaDao {
     pub fn batch_write(&self, domains: Vec<ImgMetaDO>) -> Result<(), Vec<ImgMetaDO>> {
         let conn = self.get_conn();
 
-        // let mut stmt = conn.prepare("INSERT INTO ")
-        // conn.execute(sql, params)
-        todo!()
+        let mut failed_records = Vec::new();
+
+        for domain in domains {
+            let (time, stamp) = Self::gen_time(domain.time);
+
+            let res = conn.execute(
+                "INSERT INTO img_meta(id, time, timestamp, sign) values (?1, ?2, ?3, ?4)",
+                params![Self::gen_uuid(), time, stamp, domain.sign],
+            );
+
+            if let Err(_e) = res {
+                tracing::error!("Push img meta records failed!");
+                failed_records.push(domain);
+            }
+        }
+
+        if failed_records.len() > 0 {
+            Err(failed_records)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn query_all(&self, offset: usize, limit: usize) -> Result<Vec<ImgMetaDO>, anyhow::Error> {
+        let conn = self.get_conn();
+
+        let mut stmt = conn.prepare("select id, timestamp, sign from img_meta limit ?, ?")?;
+        let mut recs = stmt.query([offset, limit])?;
+
+        let mut img_metas = Vec::new();
+
+        while let Some(row) = recs.next()? {
+            img_metas.push(Self::convert_to_img_meta_do(row));
+        }
+
+        Ok(img_metas)
+    }
+
+    fn convert_to_img_meta_do(row: &Row) -> ImgMetaDO {
+        let id: String = row.get(0).unwrap();
+
+        let timestamp: i64 = row.get(1).unwrap();
+
+        let naive_datetime = NaiveDateTime::from_timestamp(timestamp, 0);
+        let sign = row.get(2).unwrap_or("".to_string());
+
+        ImgMetaDO {
+            id,
+            time: naive_datetime,
+            sign,
+        }
+    }
+
+    fn gen_time(time: NaiveDateTime) -> (String, i64) {
+        (
+            time.format("%Y-%m-%d %H:%M:%S").to_string(),
+            time.timestamp(),
+        )
+    }
+
+    fn gen_uuid() -> String {
+        let uuid = uuid::Uuid::new_v4();
+        uuid.to_string()
     }
 
     pub fn get_conn(&self) -> Connection {
@@ -60,52 +106,13 @@ impl ImgMetaDao {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::params;
 
-    fn init_conf() -> GlobalConfig {
-        let conf = GlobalConfig {
-            meta_path: "C:\\Users\\frio\\tmp".to_string(),
-        };
-    }
-
-    #[test]
-    fn test_init() {
-        let conf = Arc::new(init_conf());
-        let dao = ImgMetaDao { conf };
-
-        dao.init();
-    }
+    fn set_up() {}
 
     #[test]
     fn test_basic_db() -> DbResult<()> {
         let conn = Connection::open_in_memory()?;
-
-        conn.execute(
-            "CREATE TABLE img_meta (id integer primary key, time, sign)",
-            [],
-        )?;
-        let img = ImgMetaDO {
-            id: 1,
-            time: NaiveDateTime::from_timestamp(111111, 1111),
-            sign: "sign".to_string(),
-        };
-
-        conn.execute(
-            "INSERT INTO img_meta(time, sign) values(?1, ?2)",
-            params![img.time, img.sign],
-        )?;
-
-        let mut stmt = conn.prepare("select id, time, sign from img_meta")?;
-        let img_iter = stmt.query_map([], |row| {
-            Ok(ImgMetaDO {
-                id: row.get(0)?,
-                time: row.get(1)?,
-                sign: row.get(2)?,
-            })
-        })?;
-
-        for img in img_iter {
-            println!("Img is:{:?}", img);
-        }
 
         Ok(())
     }
