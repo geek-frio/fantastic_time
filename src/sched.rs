@@ -58,7 +58,7 @@ impl From<ImgMeta> for ImgMetaDO {
             .unwrap_or(NaiveDateTime::from_timestamp(timestamp, 0));
         let sign = img.sig.unwrap();
 
-        ImgMetaDO { id: 0, time, sign }
+        ImgMetaDO::new(time, sign)
     }
 }
 
@@ -111,7 +111,7 @@ impl ImgActor {
             .map(|p| p.unwrap())
             .collect::<Vec<ImgMetaDO>>();
 
-        let r = dao.batch_write(dos);
+        let r = ImgMetaDao::batch_write(dos, &dao.get_conn());
 
         if let Err(dos) = r {
             error!("记录写入失败:{:?}", dos);
