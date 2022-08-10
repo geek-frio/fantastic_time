@@ -1,5 +1,4 @@
 pub(crate) mod conf;
-pub(crate) mod gui;
 pub(crate) mod img;
 pub(crate) mod sched;
 pub(crate) mod store;
